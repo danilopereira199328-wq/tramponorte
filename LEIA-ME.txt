@@ -1,0 +1,30 @@
+TRAMPONORTE — plataforma inicial
+
+REQUISITOS
+Node.js 20 ou superior.
+
+INICIAR
+1. Abra um terminal nesta pasta.
+2. Execute: npm install
+3. Defina a variável JWT_SECRET com uma chave aleatória forte (pelo menos 32 caracteres).
+   PowerShell: $env:JWT_SECRET="uma-chave-longa-e-aleatoria"
+4. Execute: npm start
+5. Abra http://localhost:3000
+
+API
+POST /api/auth/register — criar conta de empresa (email, password, company)
+POST /api/auth/login — iniciar sessão
+GET /api/jobs?q=&city=&area=&type= — pesquisar vagas
+POST /api/jobs — publicar (Authorization: Bearer TOKEN)
+GET /api/my/jobs — vagas da empresa autenticada
+DELETE /api/jobs/ID — arquivar vaga própria
+POST /api/alerts — registar alerta (não envia email sem SMTP)
+
+A base SQLite é criada automaticamente. É uma base de implementação local; antes de abrir ao público configure HTTPS, SMTP, limitação de pedidos, backups e monitorização. As vagas estáticas apresentadas na página são exemplos e não são importadas para a base de dados.
+CONTAS DE CANDIDATOS
+POST /api/candidates/register — nome, cidade opcional, email e password (mín. 10 caracteres)
+POST /api/candidates/login — email e password
+GET /api/candidates/me — perfil autenticado
+GET /api/candidates/saved — vagas guardadas
+POST /api/candidates/saved/ID — guardar vaga
+DELETE /api/candidates/saved/ID — remover vaga guardada

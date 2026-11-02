@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trampo Norte — Empregos</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+:root {
+  --bg: #f4f7f3; --text: #183328; --card: #ffffff; --border: #e1e9e1;
+  --primary: #176b4a; --primary-hover: #125338; --hero-grad: linear-gradient(135deg, #eaf3e5 0%, #d4e8c9 100%);
+  --input-bg: #ffffff; --detail: #627168;
+}
+[data-theme="dark"] {
+  --bg: #121a16; --text: #e0e8e3; --card: #1c2621; --border: #2d3b33;
+  --primary: #2ebd85; --primary-hover: #26a372; --hero-grad: linear-gradient(135deg, #1a2620 0%, #12281c 100%);
+  --input-bg: #25332c; --detail: #9db0a5;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px Arial,sans-serif;transition:background 0.3s, color 0.3s;}
+header{padding:22px max(calc((100% - 1050px)/2),24px);background:var(--card);border-bottom:1px solid var(--border);font-size:22px;font-weight:bold;color:var(--primary);display:flex;justify-content:space-between;align-items:center;transition:background 0.3s;}
+
+.hero{padding:70px 24px 60px;background:var(--hero-grad);position:relative;overflow:hidden;transition:background 0.3s;}
+.inner{max-width:1000px;margin:auto;}
+h1{font-size:46px;max-width:650px;margin:8px 0;line-height:1.1}
+h1 span{color:var(--primary)}
+p{color:var(--detail)}
+.search{display:flex;gap:8px;margin-top:25px;box-shadow:0 4px 12px rgba(0,0,0,0.05);border-radius:8px;background:var(--card);padding:6px}
+.search input,.search select{padding:14px;border:1px solid var(--border);border-radius:8px;flex:1;background:var(--input-bg);color:var(--text);outline:none;}
+.search button{background:var(--primary);color:white;border:0;border-radius:8px;padding:14px 20px;cursor:pointer;}
+
+.main{max-width:1000px;margin:35px auto;padding:0 18px}
+.list{display:grid;gap:12px;margin-top:15px}
+.job{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;display:grid;grid-template-columns:1fr auto;align-items:center;transition:background 0.3s;}
+.job h3{margin:0 0 8px}
+.detail{color:var(--detail);font-size:14px}
+.tag{display:inline-block;background:var(--bg);color:var(--primary);padding:6px 9px;border-radius:6px;font-size:12px;margin-top:12px;font-weight:bold;}
+.match-tag{display:inline-block;background:#d1fae5;color:#065f46;padding:6px 9px;border-radius:6px;font-size:12px;margin-top:12px;margin-left:6px;font-weight:bold;}
+[data-theme="dark"] .match-tag{background:#064e3b;color:#6ee7b7;}
+
+.save{background:var(--card);border:1px solid var(--border);color:var(--primary);padding:9px 13px;cursor:pointer;border-radius:8px;transition:all 0.2s}
+.save:hover{background:var(--bg)}
+.details{background:var(--bg);color:var(--primary);padding:9px 13px;border:0;border-radius:8px;cursor:pointer;}
+.tools select,.tools button,.alert input{border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--input-bg);color:var(--text)}
+.tools button.active{background:var(--primary);color:white;border-color:var(--primary)}
+
+.pagination{display:flex;justify-content:center;gap:5px;margin:25px 0}
+.pagination button{padding:8px 12px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;cursor:pointer}
+.pagination button.active{background:var(--primary);color:white}
+
+.modal{position:fixed;inset:0;background:#11251c99;display:none;place-items:center;padding:18px;z-index:100}
+.modal.open{display:grid}
+.box{max-width:500px;width:100%;background:var(--card);border-radius:14px;padding:24px;color:var(--text)}
+.close{float:right;border:0;background:none;color:var(--text);font-size:24px;cursor:pointer;}
+.alert{display:flex;gap:8px;margin:22px 0 10px;flex-wrap:wrap}
+.alert button{padding:10px 14px;border-radius:8px;border:0;background:var(--primary);color:white;cursor:pointer}
+.alert button[type="button"]{background:none;color:var(--detail);text-decoration:underline;padding:10px}
+
+.dash-card{background:var(--bg);padding:15px;border-radius:8px;margin-bottom:10px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start}
+.dash-card select{padding:5px;border-radius:5px;border:1px solid var(--border);background:var(--card);color:var(--text)}
+.review-stars{color:#fbbf24;font-size:20px;margin:10px 0}
+.review-stars span{cursor:pointer;}
+
+#toastContainer{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px}
+.toast{background:#183328;color:white;padding:15px 20px;border-radius:8px;box-shadow:0 5px 15px rgba(0,0,0,0.2);opacity:0;transform:translateY(20px);transition:all 0.3s;}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.success{border-left:4px solid #4ade80}
+.toast.error{border-left:4px solid #f87171}
+.toast.info{border-left:4px solid #60a5fa}
+
+@media(max-width:620px){ .search{flex-direction:column;padding:0} .job{grid-template-columns:1fr} .alert{flex-direction:column} }
+</style>
+</head>
+<body>
+
+<div id="toastContainer"></div>
+<header>
+  <span>↗ tramponorte</span>
+  <button id="themeToggle" style="background:none;border:1px solid var(--border);color:var(--text);border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:20px">🌙</button>
+</header>
+
+<section class="hero">
+  <div class="inner">
+    <small>OPORTUNIDADES NO NORTE DE PORTUGAL</small>
+    <h1>O próximo passo da tua carreira começa <span>aqui.</span></h1>
+    <form class="search" id="form">
+      <input id="q" placeholder="Cargo, empresa ou palavra-chave">
+      <select id="city">
+        <option value="">Todas as cidades</option>
+        <option>Porto</option><option>Braga</option><option>Vila Real</option><option>Guimarães</option><option>Fafe</option>
+      </select>
+      <button>Procurar vagas</button>
+    </form>
+  </div>
+</section>
+
+<main class="main">
+  <div class="bar" style="display:flex;justify-content:space-between;align-items:center">
+    <div><h2>Vagas em destaque</h2><p id="count"></p></div>
+    <select id="order" style="padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)">
+      <option value="recent">Mais recentes</option><option value="salary">Maior salário</option>
+    </select>
+  </div>
+
+  <div class="tools">
+    <select id="type">
+      <option value="">Todos os tipos</option><option>Tempo inteiro</option><option>Part-time</option><option>Remoto</option><option>Estágio</option>
+    </select>
+    <select id="area">
+      <option value="">Todas as áreas</option><option>Tecnologia</option><option>Marketing</option><option>Comercial</option><option>Operações</option>
+    </select>
+    <button id="savedOnly">♡ Ver guardadas</button>
+    <button id="clear">Limpar filtros</button>
+  </div>
+
+  <div class="list" id="list"></div>
+  <div class="none" id="none" style="display:none;text-align:center;padding:20px;background:var(--card);border-radius:10px;color:var(--detail)">Não foram encontradas vagas.</div>
+  <div class="pagination" id="pagination"></div>
+
+  <!-- ÁREA CANDIDATO -->
+  <section class="job" id="candidate" style="display:block;margin:22px 0">
+    <h2>Área de candidatos</h2>
+    
+    <!-- Formulário de Registo ISOLADO -->
+    <div id="candRegContainer" style="border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 20px;">
+      <h3 style="margin:0 0 10px 0;font-size:16px">Criar nova conta</h3>
+      <div class="alert" style="margin:0">
+        <input id="candName" placeholder="Nome completo" required>
+        <input id="candSkills" placeholder="Skills (ex: JavaScript, Marketing)" style="flex:2">
+        <input id="candEmail" type="email" placeholder="Email" required>
+        <input id="candPass" type="password" minlength="10" placeholder="Password (mín. 10)" required>
+        <button type="button" id="btnRegister" style="background:var(--primary);color:white;padding:10px 14px;border:none;border-radius:8px;cursor:pointer">Criar conta</button>
+      </div>
+    </div>
+
+    <!-- Formulário de Login ISOLADO -->
+    <div id="candLoginContainer">
+      <h3 style="margin:0 0 10px 0;font-size:16px">Já tens conta? Entra aqui</h3>
+      <form class="alert" id="candLogin" style="margin:0">
+        <input id="candLoginEmail" type="email" placeholder="Email" required>
+        <input id="candLoginPass" type="password" placeholder="Password" required>
+        <button type="submit">Entrar</button>
+        <button type="button" id="btnForgotCand">Esqueci-me</button>
+      </form>
+    </div>
+    
+    <div id="candArea" style="display:none">
+      <p id="candStatus" class="detail"></p>
+      
+      <div style="background:var(--bg);padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid var(--border)">
+        <p class="detail" style="margin-top:0">O teu Currículo (PDF):</p>
+        <div id="cvStatus" class="detail" style="margin-bottom:10px">Nenhum CV.</div>
+        <form id="uploadCvForm" style="display:flex;gap:8px">
+          <input type="file" id="cvFile" accept=".pdf" required style="color:var(--text)">
+          <button type="submit" class="save">Enviar CV</button>
+        </form>
+      </div>
+
+      <div style="background:var(--bg);padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid var(--border)">
+        <p class="detail" style="margin-top:0">As tuas Skills (separa por vírgulas):</p>
+        <form id="skillsForm" style="display:flex;gap:8px">
+          <input id="updateSkills" placeholder="Ex: React, Design, Vendas" style="flex:1;padding:10px;border-radius:6px;border:1px solid var(--border);background:var(--input-bg);color:var(--text)">
+          <button type="submit" class="save">Guardar Perfil</button>
+        </form>
+      </div>
+
+      <button id="candLogout" class="save">Terminar sessão</button>
+    </div>
+    <p id="candMessage" class="detail" style="color:#f87171; font-weight:bold; margin-top:10px"></p>
+  </section>
+
+  <!-- ÁREA EMPRESA -->
+  <section class="job" id="employer" style="display:block;margin-top:18px">
+    <h2>Área de empresas</h2>
+    
+    <div id="empRegContainer" style="border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 20px;">
+      <h3 style="margin:0 0 10px 0;font-size:16px">Criar nova conta</h3>
+      <div class="alert" style="margin:0">
+        <input id="company" placeholder="Nome da empresa" required>
+        <input id="regEmail" type="email" placeholder="Email" required>
+        <input id="regPass" type="password" minlength="10" placeholder="Password (mín. 10)" required>
+        <button type="button" id="btnEmployerRegister" style="background:var(--primary);color:white;padding:10px 14px;border:none;border-radius:8px;cursor:pointer">Criar conta</button>
+      </div>
+    </div>
+
+    <div id="empLoginContainer">
+      <h3 style="margin:0 0 10px 0;font-size:16px">Já tens conta? Entra aqui</h3>
+      <form class="alert" id="loginForm" style="margin:0">
+        <input id="loginEmail" type="email" placeholder="Email da empresa" required>
+        <input id="loginPass" type="password" placeholder="Password" required>
+        <button type="submit">Entrar</button>
+        <button type="button" id="btnForgotEmp">Esqueci-me</button>
+      </form>
+    </div>
+    
+    <div id="employerArea" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <p class="detail" id="employerStatus"></p>
+        <button id="employerLogout" class="save" style="border-color:#f87171;color:#f87171">Logout</button>
+      </div>
+
+      <h3 style="margin-top:25px">📩 Candidaturas Recebidas</h3>
+      <div id="applicationsList"></div>
+
+      <div id="myJobsList" style="margin:20px 0"></div>
+
+      <form id="postForm">
+        <h3>Publicar oportunidade</h3>
+        <div class="tools">
+          <input name="title" placeholder="Cargo" required>
+          <input name="city" placeholder="Cidade" required>
+          <select name="type"><option>Tempo inteiro</option><option>Part-time</option><option>Remoto</option><option>Estágio</option></select>
+          <select name="area"><option>Tecnologia</option><option>Marketing</option><option>Comercial</option><option>Operações</option></select>
+          <input name="salary" type="number" placeholder="Salário (€)">
+          <input name="contact_email" type="email" placeholder="Email de contacto" required>
+        </div>
+        <textarea name="description" required maxlength="5000" placeholder="Descrição" style="width:100%;min-height:100px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-top:10px;background:var(--input-bg);color:var(--text)"></textarea>
+        <button style="margin-top:10px;padding:12px;background:var(--primary);color:white;border:0;border-radius:8px;cursor:pointer">Publicar vaga</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="modal">
+  <div class="box">
+    <button class="close" id="modalClose">×</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<div class="modal" id="reviewModal">
+  <div class="box">
+    <button class="close" id="reviewClose">×</button>
+    <h2>Avaliar Empresa</h2>
+    <div class="review-stars" id="starRating">
+      <span data-val="1">★</span><span data-val="2">★</span><span data-val="3">★</span><span data-val="4">★</span><span data-val="5">★</span>
+    </div>
+    <textarea id="reviewComment" placeholder="Comentário (opcional)" style="width:100%;height:80px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);margin-bottom:10px"></textarea>
+    <button id="submitReview" style="width:100%;padding:12px;background:var(--primary);color:white;border:0;border-radius:8px;cursor:pointer">Submeter Avaliação</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  const byId = (id) => document.getElementById(id);
+  let socket = null;
+
+  const themeToggle = byId('themeToggle');
+  const currentTheme = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  themeToggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+  themeToggle.addEventListener('click', () => {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+    themeToggle.textContent = isDark ? '🌙' : '☀️';
+  });
+
+  function showToast(msg, type='info') {
+    const t = document.createElement('div'); t.className = `toast ${type}`; t.innerHTML = `<span>${msg}</span>`;
+    byId('toastContainer').appendChild(t);
+    setTimeout(() => t.classList.add('show'), 100);
+    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 4000);
+  }
+
+  function esc(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function eur(n){ return '€' + (Number(n) || 0).toLocaleString('pt-PT'); }
+
+  async function api(path, opts){
+    const res = await fetch(path, opts);
+    let data = null; try { data = await res.json(); } catch(e) {}
+    if(!res.ok) throw new Error((data && data.error) || ('Erro ' + res.status));
+    return data;
+  }
+
+  let currentPage = 1, liveJobs = [], totalPages = 1, totalJobs = 0;
+  let savedIds = JSON.parse(localStorage.getItem('tn-saved-ids') || '[]');
+  let token = localStorage.getItem('tn-token');
+  let candToken = localStorage.getItem('tn-candidate-token');
+  let onlySaved = false;
+
+  function isSaved(j) { return savedIds.includes(j.id); }
+
+  function draw(){
+    byId('count').textContent = totalJobs + ' oportunidades encontradas';
+    byId('none').style.display = liveJobs.length ? 'none' : 'block';
+    byId('list').innerHTML = liveJobs.map(j => {
+      const marked = isSaved(j);
+      const btnLabel = marked ? '♥ Guardada' : '♡ Guardar';
+      const matchBadge = j.isMatch ? '<span class="match-tag">🌟 Match Perfeito</span>' : '';
+      return '<article class="job"><div><h3>' + esc(j.t) + '</h3>' +
+        '<div class="detail">' + esc(j.c) + ' · ' + esc(j.city) + ' · ' + esc(j.area) + '<br>' + esc(j.type) + '</div>' +
+        '<span class="tag">' + eur(j.s) + ' / mês</span>' + matchBadge + '</div>' +
+        '<div class="actions"><button class="save" data-action="toggle" data-id="' + j.id + '">' + btnLabel + '</button>' +
+        '<button class="details" data-action="details" data-id="' + j.id + '">Ver detalhes</button></div></article>';
+    }).join('');
+    
+    let pHTML = '';
+    if(totalPages > 1){
+      pHTML += `<button ${currentPage===1?'disabled':''} onclick="changePage(${currentPage-1})">Ant</button>`;
+      for(let i=1; i<=totalPages; i++) pHTML += `<button class="${i===currentPage?'active':''}" onclick="changePage(${i})">${i}</button>`;
+      pHTML += `<button ${currentPage===totalPages?'disabled':''} onclick="changePage(${currentPage+1})">Próx</button>`;
+    }
+    byId('pagination').innerHTML = pHTML;
+    byId('savedOnly').classList.toggle('active', onlySaved);
+    byId('savedOnly').textContent = onlySaved ? '♥ A ver guardadas' : '♡ Ver guardadas';
+  }
+
+  window.changePage = (p) => { currentPage = p; loadJobs(); window.scrollTo({top:300,behavior:'smooth'}); };
+
+  async function loadJobs(){
+    const params = new URLSearchParams({ q: byId('q').value, city: byId('city').value, type: byId('type').value, area: byId('area').value, page: currentPage, limit: 6 });
+    const headers = candToken ? { Authorization: 'Bearer ' + candToken } : {};
+    try{
+      const res = await api('/api/jobs?' + params, { headers });
+      liveJobs = res.data.map(x => ({ id: x.id, t: x.title, c: x.company, city: x.city, type: x.type, area: x.area, s: x.salary||0, desc: x.description, isMatch: x.isMatch }));
+      totalJobs = res.meta.total; totalPages = res.meta.totalPages;
+    }catch(e){ console.error(e); }
+    draw();
+  }
+
+  async function toggleSaved(id){
+    const job = liveJobs.find(j => String(j.id) === String(id)); if(!job) return;
+    if(isSaved(job)) savedIds = savedIds.filter(x => x !== job.id);
+    else savedIds.push(job.id);
+    localStorage.setItem('tn-saved-ids', JSON.stringify(savedIds)); draw();
+    if(candToken) {
+      try{ await api('/api/candidates/saved/'+job.id, { method: isSaved(job)?'POST':'DELETE', headers:{Authorization:'Bearer '+candToken} }); }catch(e){}
+    }
+  }
+
+  let currentJobForReview = null;
+  function showDetails(id){
+    const j = liveJobs.find(x => String(x.id) === String(id)); if(!j) return;
+    let applyBtn = candToken ? `<button class="save" style="margin-top:15px;background:var(--primary);color:white;width:100%" onclick="applyJob(${j.id})">Candidatar-me</button>` : '';
+    let reviewBtn = candToken ? `<button class="save" style="margin-top:10px;width:100%" onclick="openReview(${j.id})">⭐ Avaliar esta Empresa</button>` : '';
+    byId('modalBody').innerHTML = '<h2>'+esc(j.t)+'</h2><p>'+esc(j.c)+' · '+esc(j.city)+'</p><p>'+esc(j.desc)+'</p><p><b>Salário:</b> '+eur(j.s)+'</p>' + applyBtn + reviewBtn;
+    byId('modal').classList.add('open');
+  }
+  
+  window.openReview = (jobId) => { currentJobForReview = jobId; byId('modal').classList.remove('open'); byId('reviewModal').classList.add('open'); };
+  
+  let currentRating = 0;
+  byId('starRating').addEventListener('click', (e) => {
+    if(e.target.tagName === 'SPAN') {
+      currentRating = parseInt(e.target.dataset.val);
+      document.querySelectorAll('#starRating span').forEach(s => s.style.color = parseInt(s.dataset.val) <= currentRating ? '#fbbf24' : '#d1d5db');
+    }
+  });
+
+  byId('submitReview').addEventListener('click', async () => {
+    if(!currentRating) return showToast('Seleciona uma classificação.', 'error');
+    try {
+      await api('/api/reviews', { method:'POST', headers:{'Content-Type':'application/json', Authorization:'Bearer '+candToken}, body: JSON.stringify({job_id: currentJobForReview, rating: currentRating, comment: byId('reviewComment').value}) });
+      showToast('Avaliação registada!', 'success'); byId('reviewModal').classList.remove('open');
+    } catch(e) { showToast(e.message, 'error'); }
+  });
+
+  window.applyJob = async (jobId) => {
+    try { const d = await api('/api/jobs/'+jobId+'/apply', { method:'POST', headers:{Authorization:'Bearer '+candToken} }); showToast(d.message, 'success'); byId('modal').classList.remove('open'); }
+    catch(e) { showToast(e.message, 'error'); }
+  };
+
+  byId('list').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-action]'); if(!btn) return;
+    if(btn.dataset.action === 'toggle') toggleSaved(btn.dataset.id);
+    if(btn.dataset.action === 'details') showDetails(btn.dataset.id);
+  });
+
+  // --- CANDIDATO ---
+  byId('btnRegister').addEventListener('click', async (e) => {
+    e.preventDefault();
+    byId('candMessage').textContent = '';
+    const name = byId('candName').value;
+    const skills = byId('candSkills').value;
+    const email = byId('candEmail').value;
+    const pass = byId('candPass').value;
+    
+    if(!name || !email || !pass) return showToast('Preenche todos os campos obrigatórios.', 'error');
+
+    try{
+      const d = await api('/api/candidates/register', { 
+        method:'POST', headers:{'Content-Type':'application/json'}, 
+        body: JSON.stringify({name, skills, email, password:pass}) 
+      });
+      candToken = d.token; 
+      localStorage.setItem('tn-candidate-token', candToken); 
+      showToast('Conta criada! Bem-vindo(a).', 'success');
+      
+      byId('candRegContainer').style.display='none'; 
+      byId('candLoginContainer').style.display='none'; 
+      byId('candArea').style.display='block';
+      byId('candStatus').textContent = 'Sessão iniciada: ' + d.profile.name;
+      byId('updateSkills').value = d.profile.skills || '';
+      
+      await loadJobs();
+    }catch(err){ byId('candMessage').textContent = err.message; }
+  });
+
+  byId('candLogin').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    byId('candMessage').textContent = '';
+    try{
+      const d = await api('/api/candidates/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email:byId('candLoginEmail').value, password:byId('candLoginPass').value}) });
+      candToken = d.token; 
+      localStorage.setItem('tn-candidate-token', candToken); 
+      showToast('Sessão iniciada!', 'info');
+      
+      byId('candRegContainer').style.display='none'; 
+      byId('candLoginContainer').style.display='none'; 
+      byId('candArea').style.display='block';
+      byId('candStatus').textContent = 'Sessão iniciada: ' + d.profile.name;
+      byId('updateSkills').value = d.profile.skills || '';
+      
+      if(d.profile.cv_path) {
+        byId('cvStatus').innerHTML = 'CV: <a href="'+d.profile.cv_path+'" target="_blank" style="color:var(--primary)">Ver PDF</a>';
+      }
+      
+      await loadJobs();
+    }catch(err){ byId('candMessage').textContent = err.message; }
+  });
+
+  async function validateCandidate(){
+    if(!candToken){ byId('candRegContainer').style.display=''; byId('candLoginContainer').style.display=''; byId('candArea').style.display='none'; return; }
+    try{
+      const me = await api('/api/candidates/me', {headers:{Authorization:'Bearer '+candToken}});
+      byId('candRegContainer').style.display='none'; 
+      byId('candLoginContainer').style.display='none'; 
+      byId('candArea').style.display='block';
+      
+      byId('candStatus').textContent = 'Sessão iniciada: ' + me.name;
+      if(me.cv_path) byId('cvStatus').innerHTML = 'CV: <a href="'+me.cv_path+'" target="_blank" style="color:var(--primary)">Ver PDF</a>';
+      byId('updateSkills').value = me.skills || '';
+      loadJobs();
+    }catch(e){ 
+      localStorage.removeItem('tn-candidate-token'); candToken=null; 
+      byId('candRegContainer').style.display=''; byId('candLoginContainer').style.display=''; byId('candArea').style.display='none'; 
+    }
+  }
+
+  byId('skillsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try { await api('/api/candidates/profile', {method:'PUT', headers:{'Content-Type':'application/json', Authorization:'Bearer '+candToken}, body: JSON.stringify({skills: byId('updateSkills').value})}); showToast('Skills guardadas!', 'success'); loadJobs(); }
+    catch(e){ showToast(e.message, 'error'); }
+  });
+
+  byId('uploadCvForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const file = byId('cvFile').files[0]; if(!file) return;
+    if(file.type !== 'application/pdf') return showToast('Apenas PDF.', 'error');
+    const fd = new FormData(); fd.append('cv', file);
+    try { const d = await api('/api/candidates/upload-cv', {method:'POST', headers:{Authorization:'Bearer '+candToken}, body:fd}); byId('cvStatus').innerHTML = 'CV: <a href="'+d.cv_path+'" target="_blank" style="color:var(--primary)">Ver PDF</a>'; showToast('CV atualizado!', 'success'); }
+    catch(e){ showToast(e.message, 'error'); }
+  });
+
+  byId('candLogout').addEventListener('click', () => { localStorage.removeItem('tn-candidate-token'); location.reload(); });
+
+  // --- EMPRESA ---
+  byId('btnEmployerRegister').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const company = byId('company').value;
+    const email = byId('regEmail').value;
+    const pass = byId('regPass').value;
+    if(!company || !email || !pass) return showToast('Preenche todos os campos.', 'error');
+
+    try { 
+      const d = await api('/api/auth/register', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({company, email, password:pass})}); 
+      token = d.token; localStorage.setItem('tn-token', token); showEmployerArea(d.company); showToast('Conta criada!', 'success'); 
+    }
+    catch(err){ byId('employerStatus').textContent = err.message; }
+  });
+
+  async function loadApplications() {
+    try {
+      const apps = await api('/api/employer/applications', {headers:{Authorization:'Bearer '+token}});
+      if(!apps.length) { byId('applicationsList').innerHTML = '<p class="detail">Nenhuma candidatura recebida.</p>'; return; }
+      byId('applicationsList').innerHTML = apps.map(a => `
+        <div class="dash-card">
+          <div><b>${esc(a.candidate_name)}</b> <span class="detail">- ${esc(a.candidate_email)}</span><br><span class="detail">Vaga: <b>${esc(a.title)}</b></span><br><a href="${esc(a.cv_path)}" target="_blank" style="color:var(--primary);font-size:13px;margin-top:5px;display:inline-block">📄 Ver Currículo</a></div>
+          <select onchange="updateAppStatus(${a.id}, this.value)"><option value="Pendente" ${a.status==='Pendente'?'selected':''}>Pendente</option><option value="Em Análise" ${a.status==='Em Análise'?'selected':''}>Em Análise</option><option value="Aceite" ${a.status==='Aceite'?'selected':''}>Aceite</option><option value="Rejeitado" ${a.status==='Rejeitado'?'selected':''}>Rejeitado</option></select>
+        </div>
+      `).join('');
+    } catch(e){ console.error(e); }
+  }
+
+  window.updateAppStatus = async (id, status) => {
+    try { await api('/api/employer/applications/'+id, {method:'PUT', headers:{'Content-Type':'application/json', Authorization:'Bearer '+token}, body: JSON.stringify({status})}); showToast('Estado atualizado.', 'success'); }
+    catch(e){ showToast('Erro.', 'error'); }
+  };
+
+  async function loadMyJobs() {
+    try {
+      const jobs = await api('/api/my/jobs', {headers:{Authorization:'Bearer '+token}});
+      byId('myJobsList').innerHTML = jobs.length ? '<h3>As tuas vagas</h3>' + jobs.map(j => `<div class="dash-card"><b>${esc(j.title)}</b> <button onclick="deleteJob(${j.id})" style="color:#f87171;border:none;background:none;cursor:pointer">Apagar</button></div>`).join('') : '';
+    } catch(e){}
+  }
+
+  window.deleteJob = async (id) => { if(!confirm('Apagar vaga?')) return; await api('/api/jobs/'+id, {method:'DELETE', headers:{Authorization:'Bearer '+token}}); loadMyJobs(); loadJobs(); };
+
+  function showEmployerArea(name) {
+    byId('empRegContainer').style.display='none'; byId('empLoginContainer').style.display='none'; byId('employerArea').style.display='block';
+    byId('employerStatus').textContent = 'Sessão: ' + name;
+    if(!socket) { socket = io(); const p = JSON.parse(atob(token.split('.')[1])); socket.emit('join_employer', p.id); socket.on('new_application', (d) => { showToast(d.message, 'info'); loadApplications(); }); }
+    loadApplications(); loadMyJobs();
+  }
+
+  byId('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try { const d = await api('/api/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email:byId('loginEmail').value, password:byId('loginPass').value})}); token = d.token; localStorage.setItem('tn-token', token); showEmployerArea(d.company); showToast('Sessão iniciada!', 'info'); }
+    catch(err){ byId('employerStatus').textContent = err.message; }
+  });
+
+  byId('employerLogout').addEventListener('click', () => { localStorage.removeItem('tn-token'); location.reload(); });
+
+  byId('postForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const body = Object.fromEntries(new FormData(e.target));
+    try { await api('/api/jobs', {method:'POST', headers:{'Content-Type':'application/json', Authorization:'Bearer '+token}, body: JSON.stringify(body)}); showToast('Vaga publicada!', 'success'); e.target.reset(); loadMyJobs(); loadJobs(); }
+    catch(err){ showToast(err.message, 'error'); }
+  });
+
+  byId('form').addEventListener('submit', (e) => { e.preventDefault(); currentPage=1; loadJobs(); });
+  ['city','order','type','area'].forEach(id => byId(id).addEventListener('change', () => { currentPage=1; loadJobs(); }));
+  byId('savedOnly').addEventListener('click', () => { onlySaved = !onlySaved; draw(); });
+  byId('clear').addEventListener('click', () => { ['q','city','type','area'].forEach(k => byId(k).value=''); onlySaved=false; currentPage=1; loadJobs(); });
+  
+  byId('modalClose').addEventListener('click', () => byId('modal').classList.remove('open'));
+  byId('reviewClose').addEventListener('click', () => byId('reviewModal').classList.remove('open'));
+
+  byId('btnForgotCand').addEventListener('click', async () => {
+    const email = prompt("Insere o teu email para recuperar:");
+    if(email) { try { await api('/api/auth/forgot-password', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, role:'candidate'})}); showToast('Verifica o teu email!', 'success'); } catch(e) { showToast(e.message, 'error'); } }
+  });
+
+  byId('btnForgotEmp').addEventListener('click', async () => {
+    const email = prompt("Insere o email da empresa:");
+    if(email) { try { await api('/api/auth/forgot-password', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, role:'employer'})}); showToast('Verifica o teu email!', 'success'); } catch(e) { showToast(e.message, 'error'); } }
+  });
+
+  async function init() {
+    if(token) { try { const me = await api('/api/auth/me', {headers:{Authorization:'Bearer '+token}}); showEmployerArea(me.company); } catch(e){ localStorage.removeItem('tn-token'); token=null; } }
+    await validateCandidate(); await loadJobs();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
