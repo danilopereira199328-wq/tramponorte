@@ -13,6 +13,9 @@ const cloudinary = require('cloudinary').v2;
 const { Server } = require('socket.io');
 const postgres = require('postgres');
 
+// CORREÇÃO: Apenas uma declaração da variável sql.
+const sql = postgres.default(process.env.DATABASE_URL, { prepare: false });
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -39,8 +42,6 @@ const transporter = nodemailer.createTransport({
   port: process.env.SMTP_PORT || 587,
   auth: { user: process.env.SMTP_USER || 'teste@ethereal.email', pass: process.env.SMTP_PASS || 'teste123' }
 });
-
-const sql = postgres(process.env.DATABASE_URL, { prepare: false });
 
 const run = async (query, params = []) => { const result = await sql.unsafe(query, params); return { id: result[0]?.id, changes: result.count }; };
 const all = async (query, params = []) => await sql.unsafe(query, params);
@@ -200,7 +201,7 @@ app.post('/api/jobs', auth, async (req, res) => {
 app.get('/api/my/jobs', auth, async (req, res) => { res.json(await all('SELECT * FROM jobs WHERE user_id=$1 AND active=1', [req.user.id])); });
 app.delete('/api/jobs/:id', auth, async (req, res) => { await run('UPDATE jobs SET active=0 WHERE id=$1 AND user_id=$2', [req.params.id, req.user.id]); res.status(204).end(); });
 
-// --- ROTA PÚBLICA DA EMPRESA (Nova) ---
+// --- ROTA PÚBLICA DA EMPRESA ---
 app.get('/api/companies/:id', async (req, res) => {
   const company = await get('SELECT id, company FROM users WHERE id=$1', [req.params.id]);
   if(!company) return res.status(404).json({ error: 'Empresa não encontrada.' });
