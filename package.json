@@ -19,8 +19,8 @@
     "multer": "^2.5.0",
     "nodemailer": "^10.3.1",
     "postgres": "^4.0.0",
-    "socket.io": "^4.8.4",
-    "sqlite3": "^5.1.7"
+    "resend": "^6.37.0",
+    "socket.io": "^4.8.4"
   },
   "engines": {
     "node": ">=20"
