@@ -12,9 +12,7 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { Server } = require('socket.io');
 const postgres = require('postgres');
-
-// CORREÇÃO: Apenas uma declaração da variável sql.
-const sql = postgres.default(process.env.DATABASE_URL, { prepare: false });
+const { Resend } = require('resend'); // <-- IMPORTAÇÃO CORRETA
 
 const app = express();
 const server = http.createServer(app);
@@ -37,11 +35,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: { error: 'Demasiadas tentativas.' } });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.ethereal.email',
-  port: process.env.SMTP_PORT || 587,
-  auth: { user: process.env.SMTP_USER || 'teste@ethereal.email', pass: process.env.SMTP_PASS || 'teste123' }
-});
+// Removida a inicialização do resend daqui. Será feita dentro da rota.
+
+const sql = postgres.default(process.env.DATABASE_URL, { prepare: false });
 
 const run = async (query, params = []) => { const result = await sql.unsafe(query, params); return { id: result[0]?.id, changes: result.count }; };
 const all = async (query, params = []) => await sql.unsafe(query, params);
@@ -136,31 +132,62 @@ app.post('/api/candidates/upload-avatar', auth, upload.single('avatar'), async (
   } catch (e) { res.status(500).json({ error: 'Erro no upload.' }); }
 });
 
-// --- Candidaturas & Avaliações ---
+// --- Candidaturas & Notificações Email ---
 app.post('/api/jobs/:id/apply', auth, async (req, res) => {
   if(req.user.role !== 'candidate') return res.status(403).json({ error: 'Acesso negado.' });
   try {
-    const job = await get('SELECT j.*, u.email as employer_email FROM jobs j JOIN users u ON j.user_id = u.id WHERE j.id=$1 AND j.active=1', [req.params.id]);
+    const job = await get('SELECT j.*, u.email as employer_email, u.company as employer_company FROM jobs j JOIN users u ON j.user_id = u.id WHERE j.id=$1 AND j.active=1', [req.params.id]);
     if(!job) return res.status(404).json({ error: 'Vaga não encontrada.' });
     const candidate = await get('SELECT * FROM candidates WHERE id=$1', [req.user.id]);
     if(!candidate.cv_path) return res.status(400).json({ error: 'Carrega um CV primeiro.' });
     const existing = await get('SELECT id FROM applications WHERE job_id=$1 AND candidate_id=$2', [job.id, req.user.id]);
     if(existing) return res.status(409).json({ error: 'Já te candidataste.' });
+    
     await run('INSERT INTO applications(job_id, candidate_id, company_email) VALUES($1,$2,$3)', [job.id, req.user.id, job.employer_email]);
-    io.to(`user_${job.user_id}`).emit('new_application', { message: `Nova candidatura de ${candidate.name}!` });
+    
+    // Envio de Email com Resend
+    if(process.env.RESEND_API_KEY) {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: 'Trampo Norte <onboarding@resend.dev>',
+          to: job.employer_email,
+          subject: `Nova candidatura para: ${job.title}`,
+          html: `<h3>Olá ${job.employer_company},</h3><p>Recebeste uma nova candidatura de <b>${candidate.name}</b> para a vaga <b>${job.title}</b>.</p><p><a href="${candidate.cv_path}">Ver Currículo PDF</a></p>`
+        });
+      } catch(emailErr) { console.error('Erro ao enviar email:', emailErr); }
+    }
+
+    // Notificação em tempo real
+    io.to(`user_${job.user_id}`).emit('new_application', { message: `Nova candidatura de ${candidate.name} para "${job.title}"!` });
+    
     res.status(201).json({ message: 'Candidatura enviada!' });
   } catch (e) { res.status(500).json({ error: 'Erro ao processar.' }); }
 });
 
 app.get('/api/employer/applications', auth, async (req, res) => {
   if(req.user.role !== 'employer') return res.status(403).json({ error: 'Acesso negado.' });
-  const apps = await all('SELECT a.id, a.status, a.created_at, j.title, c.name as candidate_name, c.email as candidate_email, c.cv_path, c.avatar_url FROM applications a JOIN jobs j ON a.job_id = j.id JOIN candidates c ON a.candidate_id = c.id WHERE j.user_id = $1 ORDER BY a.created_at DESC', [req.user.id]);
+  const apps = await all('SELECT a.id, a.status, a.created_at, j.title, c.id as candidate_id, c.name as candidate_name, c.email as candidate_email, c.cv_path, c.avatar_url FROM applications a JOIN jobs j ON a.job_id = j.id JOIN candidates c ON a.candidate_id = c.id WHERE j.user_id = $1 ORDER BY a.created_at DESC', [req.user.id]);
   res.json(apps);
 });
 
 app.put('/api/employer/applications/:id', auth, async (req, res) => {
   await run('UPDATE applications SET status=$1 WHERE id=$2 AND company_email=$3', [req.body.status, req.params.id, req.user.email]);
   res.json({ message: 'Atualizado.' });
+});
+
+// --- CHAT & MENSAGENS ---
+app.get('/api/messages/:candidateId/:employerId', auth, async (req, res) => {
+  const otherId = req.params.candidateId;
+  const employerId = req.params.employerId;
+  let senderId = req.user.id;
+  let receiverId = req.user.role === 'employer' ? parseInt(otherId) : parseInt(employerId);
+  
+  const messages = await all(
+    'SELECT * FROM messages WHERE (sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1) ORDER BY created_at ASC',
+    [senderId, receiverId]
+  );
+  res.json(messages);
 });
 
 // --- VAGAS COM FILTROS E CANDIDATURAS ---
@@ -182,7 +209,6 @@ app.get('/api/jobs', async (req, res) => {
   const rows = await all(`SELECT * FROM jobs WHERE ${whereClause} ORDER BY created_at DESC LIMIT $4 OFFSET $5`, [...params, limit, offset]);
   const totalRow = await get(`SELECT COUNT(*) as count FROM jobs WHERE ${whereClause}`, params);
   
-  // Adicionar flag 'hasApplied'
   const data = await Promise.all(rows.map(async j => {
     let hasApplied = false;
     if(candidateId) { const app = await get('SELECT id FROM applications WHERE job_id=$1 AND candidate_id=$2', [j.id, candidateId]); if(app) hasApplied = true; }
@@ -219,5 +245,18 @@ app.post('/api/alerts', async (req, res) => { res.status(201).json({ message: 'R
 app.use((req, res) => res.status(404).json({ error: 'Recurso não encontrado.' }));
 app.use((err, req, res, next) => { console.error(err); res.status(500).json({ error: err.message }); });
 
-io.on('connection', (socket) => { socket.on('join_employer', (userId) => { socket.join(`user_${userId}`); }); });
+// --- SOCKET.IO ---
+io.on('connection', (socket) => {
+  socket.on('join_employer', (userId) => { socket.join(`user_${userId}`); });
+  
+  socket.on('send_message', async (data) => {
+    const { sender_id, receiver_id, sender_role, content } = data;
+    try {
+      await run('INSERT INTO messages(sender_id, receiver_id, sender_role, content) VALUES($1,$2,$3,$4)', [sender_id, receiver_id, sender_role, content]);
+      io.to(`user_${receiver_id}`).emit('receive_message', data);
+      socket.emit('receive_message', data);
+    } catch(e) { console.error(e); }
+  });
+});
+
 server.listen(PORT, () => console.log('Tramponorte online: ' + PORT));

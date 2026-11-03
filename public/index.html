@@ -53,10 +53,15 @@ p{color:var(--detail)}
 .toast.success{border-left:4px solid #4ade80}
 .toast.error{border-left:4px solid #f87171}
 .toast.info{border-left:4px solid #60a5fa}
-/* Skeletons */
-.skeleton{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;display:grid;grid-template-columns:1fr auto;gap:12px;overflow:hidden}
-.skeleton div{background:linear-gradient(90deg, var(--bg) 25%, var(--border) 50%, var(--bg) 75%);background-size:200% 100%;animation:loading 1.5s infinite;border-radius:6px;}
-@keyframes loading{0%{background-position:200% 0}100%{background-position:-200% 0}}
+/* CHAT */
+.chat-box {border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:15px;}
+.chat-messages {height:200px;overflow-y:auto;padding:10px;background:var(--bg);display:flex;flex-direction:column;gap:8px;}
+.chat-msg {padding:8px 12px;border-radius:8px;max-width:80%;font-size:14px;}
+.chat-msg.sent {background:var(--primary);color:white;align-self:flex-end;border-bottom-right-radius:0;}
+.chat-msg.received {background:var(--card);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:0;}
+.chat-input {display:flex;padding:10px;gap:8px;background:var(--card);border-top:1px solid var(--border);}
+.chat-input input {flex:1;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--text);outline:none;}
+.chat-input button {padding:10px 15px;background:var(--primary);color:white;border:0;border-radius:6px;cursor:pointer;}
 @media(max-width:620px){ .search{flex-direction:column;padding:0} .job{grid-template-columns:1fr} .alert{flex-direction:column} }
 </style>
 </head>
@@ -92,7 +97,6 @@ p{color:var(--detail)}
   <div class="tools" style="align-items:center">
     <select id="type"><option value="">Todos os tipos</option><option>Tempo inteiro</option><option>Part-time</option><option>Remoto</option><option>Estágio</option></select>
     <select id="area"><option value="">Todas as áreas</option><option>Tecnologia</option><option>Marketing</option><option>Comercial</option><option>Operações</option></select>
-    <!-- Filtro de Salário -->
     <div style="display:flex;align-items:center;gap:8px;background:var(--card);padding:0 10px;border:1px solid var(--border);border-radius:8px">
       <span style="font-size:12px;color:var(--detail)">Salário Mín:</span>
       <input type="range" id="minSalary" min="0" max="3000" step="100" value="0" style="width:100px">
@@ -102,12 +106,7 @@ p{color:var(--detail)}
     <button id="clear">Limpar filtros</button>
   </div>
 
-  <div class="list" id="list">
-    <!-- Skeletons Iniciais -->
-    <div class="skeleton"><div style="height:20px;width:60%"></div><div style="height:40px;width:80px"></div></div>
-    <div class="skeleton"><div style="height:20px;width:40%"></div><div style="height:40px;width:80px"></div></div>
-    <div class="skeleton"><div style="height:20px;width:70%"></div><div style="height:40px;width:80px"></div></div>
-  </div>
+  <div class="list" id="list"></div>
   <div class="none" id="none" style="display:none;text-align:center;padding:20px;background:var(--card);border-radius:10px;color:var(--detail)">Não foram encontradas vagas.</div>
   <div class="pagination" id="pagination"></div>
 
@@ -118,7 +117,7 @@ p{color:var(--detail)}
       <h3 style="margin:0 0 10px 0;font-size:16px">Criar nova conta</h3>
       <div class="alert" style="margin:0">
         <input id="candName" placeholder="Nome completo" required>
-        <input id="candSkills" placeholder="Skills (ex: JavaScript, Marketing)" style="flex:2">
+        <input id="candSkills" placeholder="Skills" style="flex:2">
         <input id="candEmail" type="email" placeholder="Email" required>
         <input id="candPass" type="password" minlength="10" placeholder="Password (mín. 10)" required>
         <button type="button" id="btnRegister" style="background:var(--primary);color:white;padding:10px 14px;border:none;border-radius:8px;cursor:pointer">Criar conta</button>
@@ -135,7 +134,6 @@ p{color:var(--detail)}
     </div>
     <div id="candArea" style="display:none">
       <p id="candStatus" class="detail"></p>
-      <!-- Avatar -->
       <div style="display:flex;gap:20px;align-items:center;margin-bottom:15px;background:var(--bg);padding:15px;border-radius:8px;border:1px solid var(--border)">
         <img id="candAvatarImg" src="https://via.placeholder.com/80?text=?" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--primary)">
         <div>
@@ -153,7 +151,7 @@ p{color:var(--detail)}
         </form>
       </div>
       <div style="background:var(--bg);padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid var(--border)">
-        <p class="detail" style="margin-top:0">As tuas Skills (separa por vírgulas):</p>
+        <p class="detail" style="margin-top:0">As tuas Skills:</p>
         <form id="skillsForm" style="display:flex;gap:8px">
           <input id="updateSkills" placeholder="Ex: React, Design, Vendas" style="flex:1;padding:10px;border-radius:6px;border:1px solid var(--border);background:var(--input-bg);color:var(--text)">
           <button type="submit" class="save">Guardar Perfil</button>
@@ -214,12 +212,24 @@ p{color:var(--detail)}
 <div class="modal" id="modal"><div class="box"><button class="close" id="modalClose">×</button><div id="modalBody"></div></div></div>
 <div class="modal" id="reviewModal"><div class="box"><button class="close" id="reviewClose">×</button><h2>Avaliar Empresa</h2><div class="review-stars" id="starRating"><span data-val="1">★</span><span data-val="2">★</span><span data-val="3">★</span><span data-val="4">★</span><span data-val="5">★</span></div><textarea id="reviewComment" placeholder="Comentário" style="width:100%;height:80px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);margin-bottom:10px"></textarea><button id="submitReview" style="width:100%;padding:12px;background:var(--primary);color:white;border:0;border-radius:8px;cursor:pointer">Submeter</button></div></div>
 <div class="modal" id="companyModal"><div class="box"><button class="close" id="companyClose">×</button><div id="companyBody"></div></div></div>
+<!-- MODAL DE CHAT -->
+<div class="modal" id="chatModal"><div class="box" style="max-width:600px">
+  <button class="close" id="chatClose">×</button>
+  <h2 id="chatTitle">Chat</h2>
+  <div class="chat-box">
+    <div class="chat-messages" id="chatMessages"></div>
+    <form class="chat-input" id="chatForm">
+      <input id="chatInput" placeholder="Escreve uma mensagem..." required>
+      <button type="submit">Enviar</button>
+    </form>
+  </div>
+</div></div>
 
 <script>
 (function(){
   'use strict';
   const byId = (id) => document.getElementById(id);
-  let socket = null, currentEmployerId = null;
+  let socket = null, currentEmployerId = null, activeChatUserId = null;
 
   // TEMA
   const themeToggle = byId('themeToggle'), currentTheme = localStorage.getItem('theme') || 'light';
@@ -247,7 +257,6 @@ p{color:var(--detail)}
     return data;
   }
 
-  // ESTADO
   let currentPage = 1, liveJobs = [], totalPages = 1, totalJobs = 0;
   let savedIds = JSON.parse(localStorage.getItem('tn-saved-ids') || '[]');
   let token = localStorage.getItem('tn-token');
@@ -256,7 +265,7 @@ p{color:var(--detail)}
 
   function isSaved(j) { return savedIds.includes(j.id); }
 
-  // DESENHO DA LISTA (Com Skeletons e Partilha)
+  // DESENHO DA LISTA
   function draw(){
     byId('count').textContent = totalJobs + ' oportunidades encontradas';
     byId('none').style.display = liveJobs.length ? 'none' : 'block';
@@ -267,7 +276,6 @@ p{color:var(--detail)}
       const btnLabel = marked ? '♥ Guardada' : '♡ Guardar';
       const matchBadge = j.isMatch ? '<span class="match-tag">🌟 Match Perfeito</span>' : '';
       
-      // Botão de Candidatar-me ou Já Candidatado
       let actionBtn = '';
       if (j.hasApplied) {
         actionBtn = `<button class="save" style="background:#d1fae5;color:#065f46;border:1px solid #a7f3d0;cursor:default" disabled>✓ Já Candidatado</button>`;
@@ -299,48 +307,51 @@ p{color:var(--detail)}
 
   window.changePage = (p) => { currentPage = p; loadJobs(); window.scrollTo({top:300,behavior:'smooth'}); };
 
-  async function loadJobs(){
-    // Mostrar Skeletons
-    byId('list').innerHTML = '<div class="skeleton"><div style="height:20px;width:60%"></div><div style="height:40px;width:80px"></div></div><div class="skeleton"><div style="height:20px;width:40%"></div><div style="height:40px;width:80px"></div></div>';
+  // FUNÇÃO CANDIDATAR (ADICIONADA)
+  window.applyJob = async (jobId) => {
+    try {
+      const d = await api('/api/jobs/' + jobId + '/apply', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + candToken }
+      });
+      showToast(d.message, 'success');
+      byId('modal').classList.remove('open');
+      loadJobs(); // Atualiza a lista para mostrar "Já Candidatado"
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  };
 
+  async function loadJobs(){
+    byId('list').innerHTML = '<div class="skeleton"><div style="height:20px;width:60%"></div><div style="height:40px;width:80px"></div></div><div class="skeleton"><div style="height:20px;width:40%"></div><div style="height:40px;width:80px"></div></div>';
     const params = new URLSearchParams({ 
-      q: byId('q').value, 
-      city: byId('city').value, 
-      type: byId('type').value, 
-      area: byId('area').value, 
-      minSalary: byId('minSalary').value,
-      page: currentPage, 
-      limit: 6 
+      q: byId('q').value, city: byId('city').value, type: byId('type').value, area: byId('area').value, minSalary: byId('minSalary').value, page: currentPage, limit: 6 
     });
     const headers = candToken ? { Authorization: 'Bearer ' + candToken } : {};
     try{
       const res = await api('/api/jobs?' + params, { headers });
-      liveJobs = res.data.map(x => ({ 
-        id: x.id, user_id: x.user_id, t: x.title, c: x.company, city: x.city, type: x.type, area: x.area, salary: x.salary, desc: x.description, isMatch: x.isMatch, hasApplied: x.hasApplied 
-      }));
+      liveJobs = res.data.map(x => ({ id: x.id, user_id: x.user_id, t: x.title, c: x.company, city: x.city, type: x.type, area: x.area, salary: x.salary, desc: x.description, isMatch: x.isMatch, hasApplied: x.hasApplied }));
       totalJobs = res.meta.total; totalPages = res.meta.totalPages;
     }catch(e){ console.error(e); }
     draw();
   }
 
-  // AÇÕES DOS BOTÕES
+  // AÇÕES
   byId('list').addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]'); if(!btn) return;
     const action = btn.dataset.action, id = btn.dataset.id;
 
-    if(action === 'toggle') { // Guardar
+    if(action === 'toggle') {
       const job = liveJobs.find(j => String(j.id) === String(id));
       if(isSaved(job)) savedIds = savedIds.filter(x => x !== job.id); else savedIds.push(job.id);
       localStorage.setItem('tn-saved-ids', JSON.stringify(savedIds)); draw();
       if(candToken) { try{ await api('/api/candidates/saved/'+job.id, { method: isSaved(job)?'POST':'DELETE', headers:{Authorization:'Bearer '+candToken} }); }catch(e){} }
     }
-    
-    if(action === 'share') { // Partilhar
+    if(action === 'share') {
       const url = window.location.origin + '/?job=' + id;
       if(navigator.share) { await navigator.share({ title: 'Vaga no Trampo Norte', url }); }
       else { await navigator.clipboard.writeText(url); showToast('Link copiado!', 'success'); }
     }
-    
     if(action === 'details') {
       const j = liveJobs.find(x => String(x.id) === String(id));
       let applyBtn = '';
@@ -353,8 +364,7 @@ p{color:var(--detail)}
       byId('modalBody').innerHTML = '<h2>'+esc(j.t)+'</h2><p>'+esc(j.c)+' · '+esc(j.city)+'</p><p>'+esc(j.desc)+'</p><p><b>Salário:</b> '+eur(j.salary)+'</p>' + applyBtn + reviewBtn;
       byId('modal').classList.add('open');
     }
-
-    if(action === 'company') { // Ver perfil da empresa
+    if(action === 'company') {
       try {
         const data = await api('/api/companies/' + id);
         let stars = '';
@@ -374,7 +384,7 @@ p{color:var(--detail)}
     }
   });
 
-  // --- LÓGICA CANDIDATO ---
+  // --- CANDIDATO (Registo/Login) ---
   byId('btnRegister').addEventListener('click', async (e) => {
     e.preventDefault();
     const name = byId('candName').value, skills = byId('candSkills').value, email = byId('candEmail').value, pass = byId('candPass').value;
@@ -438,7 +448,7 @@ p{color:var(--detail)}
 
   byId('candLogout').addEventListener('click', () => { localStorage.removeItem('tn-candidate-token'); location.reload(); });
 
-  // --- LÓGICA EMPRESA ---
+  // --- EMPRESA (Registo/Login) ---
   byId('btnEmployerRegister').addEventListener('click', async (e) => {
     e.preventDefault();
     try { const d = await api('/api/auth/register', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({company:byId('company').value, email:byId('regEmail').value, password:byId('regPass').value})}); token = d.token; localStorage.setItem('tn-token', token); showEmployerArea(d.company); showToast('Conta criada!', 'success'); }
@@ -461,7 +471,7 @@ p{color:var(--detail)}
   async function loadApplications() {
     try {
       const apps = await api('/api/employer/applications', {headers:{Authorization:'Bearer '+token}});
-      if(!apps.length) { byId('applicationsList').innerHTML = '<p class="detail">Nenhuma candidatura recebida.</p>'; return; }
+      if(!apps.length) { byId('applicationsList').innerHTML = '<p class="detail">Nenhuma candidatura.</p>'; return; }
       byId('applicationsList').innerHTML = apps.map(a => `
         <div class="dash-card">
           <div style="display:flex;gap:10px;align-items:center">
@@ -470,6 +480,7 @@ p{color:var(--detail)}
               <b>${esc(a.candidate_name)}</b> <span class="detail">- ${esc(a.candidate_email)}</span><br>
               <span class="detail">Vaga: <b>${esc(a.title)}</b></span><br>
               <a href="${esc(a.cv_path)}" target="_blank" style="color:var(--primary);font-size:13px;">📄 Ver CV</a>
+              <button onclick="openChat(${a.candidate_id}, '${esc(a.candidate_name)}')" style="margin-left:10px;background:var(--primary);color:white;border:none;border-radius:4px;padding:2px 8px;font-size:12px;cursor:pointer">💬 Chat</button>
             </div>
           </div>
           <select onchange="updateAppStatus(${a.id}, this.value)"><option value="Pendente" ${a.status==='Pendente'?'selected':''}>Pendente</option><option value="Em Análise" ${a.status==='Em Análise'?'selected':''}>Em Análise</option><option value="Aceite" ${a.status==='Aceite'?'selected':''}>Aceite</option><option value="Rejeitado" ${a.status==='Rejeitado'?'selected':''}>Rejeitado</option></select>
@@ -500,22 +511,62 @@ p{color:var(--detail)}
     catch(err){ showToast(err.message, 'error'); }
   });
 
+  // --- CHAT ---
+  window.openChat = async (receiverId, receiverName) => {
+    activeChatUserId = receiverId;
+    byId('chatTitle').textContent = 'Chat com ' + receiverName;
+    byId('chatMessages').innerHTML = '<p class="detail">A carregar...</p>';
+    byId('chatModal').classList.add('open');
+
+    try {
+      const msgs = await api(`/api/messages/${receiverId}/${currentEmployerId}`, {headers:{Authorization:'Bearer '+token}});
+      byId('chatMessages').innerHTML = msgs.map(m => {
+        const isSent = m.sender_id === currentEmployerId;
+        return `<div class="chat-msg ${isSent?'sent':'received'}">${esc(m.content)}</div>`;
+      }).join('');
+      byId('chatMessages').scrollTop = byId('chatMessages').scrollHeight;
+    } catch(e) { byId('chatMessages').innerHTML = '<p class="detail">Erro ao carregar mensagens.</p>'; }
+  };
+
+  byId('chatForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = byId('chatInput');
+    const content = input.value.trim();
+    if(!content) return;
+    socket.emit('send_message', {
+      sender_id: currentEmployerId,
+      receiver_id: activeChatUserId,
+      sender_role: 'employer',
+      content: content
+    });
+    input.value = '';
+  });
+
+  if(socket) {
+    socket.on('receive_message', (data) => {
+      if(byId('chatModal').classList.contains('open') && activeChatUserId === data.sender_id) {
+        const isSent = data.sender_id === currentEmployerId;
+        byId('chatMessages').innerHTML += `<div class="chat-msg ${isSent?'sent':'received'}">${esc(data.content)}</div>`;
+        byId('chatMessages').scrollTop = byId('chatMessages').scrollHeight;
+      }
+    });
+  }
+
+  byId('chatClose').addEventListener('click', () => byId('chatModal').classList.remove('open'));
+
   // --- FILTROS & MODAIS ---
   byId('form').addEventListener('submit', (e) => { e.preventDefault(); currentPage=1; loadJobs(); });
   ['city','order','type','area'].forEach(id => byId(id).addEventListener('change', () => { currentPage=1; loadJobs(); }));
-  
-  // Slider de Salário
   byId('minSalary').addEventListener('input', (e) => { byId('salaryLabel').textContent = '€' + e.target.value; });
   byId('minSalary').addEventListener('change', () => { currentPage=1; loadJobs(); });
-
   byId('savedOnly').addEventListener('click', () => { onlySaved = !onlySaved; draw(); });
   byId('clear').addEventListener('click', () => { ['q','city','type','area'].forEach(k => byId(k).value=''); byId('minSalary').value=0; byId('salaryLabel').textContent='€0'; onlySaved=false; currentPage=1; loadJobs(); });
   
-  // Fechar Modais
   byId('modalClose').addEventListener('click', () => byId('modal').classList.remove('open'));
   byId('reviewClose').addEventListener('click', () => byId('reviewModal').classList.remove('open'));
   byId('companyClose').addEventListener('click', () => byId('companyModal').classList.remove('open'));
 
+  // Inicialização
   async function init() {
     if(token) { try { const me = await api('/api/auth/me', {headers:{Authorization:'Bearer '+token}}); showEmployerArea(me.company); } catch(e){ localStorage.removeItem('tn-token'); token=null; } }
     await validateCandidate(); await loadJobs();
