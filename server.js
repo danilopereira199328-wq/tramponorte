@@ -12,7 +12,7 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { Server } = require('socket.io');
 const postgres = require('postgres');
-const { Resend } = require('resend'); // <-- IMPORTAÇÃO CORRETA
+const { Resend } = require('resend');
 
 const app = express();
 const server = http.createServer(app);
@@ -35,9 +35,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: { error: 'Demasiadas tentativas.' } });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-// Removida a inicialização do resend daqui. Será feita dentro da rota.
-
-const sql = postgres.default(process.env.DATABASE_URL, { prepare: false });
+const sql = postgres(process.env.DATABASE_URL, { prepare: false });
 
 const run = async (query, params = []) => { const result = await sql.unsafe(query, params); return { id: result[0]?.id, changes: result.count }; };
 const all = async (query, params = []) => await sql.unsafe(query, params);
@@ -145,7 +143,6 @@ app.post('/api/jobs/:id/apply', auth, async (req, res) => {
     
     await run('INSERT INTO applications(job_id, candidate_id, company_email) VALUES($1,$2,$3)', [job.id, req.user.id, job.employer_email]);
     
-    // Envio de Email com Resend
     if(process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
@@ -158,9 +155,7 @@ app.post('/api/jobs/:id/apply', auth, async (req, res) => {
       } catch(emailErr) { console.error('Erro ao enviar email:', emailErr); }
     }
 
-    // Notificação em tempo real
     io.to(`user_${job.user_id}`).emit('new_application', { message: `Nova candidatura de ${candidate.name} para "${job.title}"!` });
-    
     res.status(201).json({ message: 'Candidatura enviada!' });
   } catch (e) { res.status(500).json({ error: 'Erro ao processar.' }); }
 });
@@ -259,4 +254,8 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => console.log('Tramponorte online: ' + PORT));
+// MODIFICAÇÃO IMPORTANTE: Exportar a app para os testes
+if (require.main === module) {
+  server.listen(PORT, () => console.log('Tramponorte online: ' + PORT));
+}
+module.exports = app;
