@@ -1,45 +1,50 @@
 # 🚀 Trampo Norte
 
-Uma plataforma de emprego moderna, segura e completa desenvolvida especificamente para a região Norte de Portugal[cite: 6]. O projeto foca-se em proporcionar uma experiência fluída tanto para candidatos como para empresas, integrando tecnologias web modernas e comunicação em tempo real.
+Uma plataforma de emprego full-stack para a região Norte de Portugal, que liga candidatos a empresas com um sistema completo de vagas, candidaturas, notificações em tempo real e chat.
 
-## 🔗 Link do Projeto Online
-👉 **[Acede ao Trampo Norte Aqui](https://tramponorte.onrender.com)**[cite: 6]
+🔗 **Projeto Online:** [https://tramponorte.onrender.com](https://tramponorte.onrender.com)
 
-## 💻 Tecnologias Utilizadas
+> ⏳ **Nota:** O projeto está alojado no plano gratuito do Render, que hiberna após 15 minutos de inatividade. O primeiro acesso pode demorar cerca de 30 segundos.
 
-**Frontend:**
-- HTML5, CSS3 e JavaScript (Vanilla)[cite: 6]
-- Design Responsivo e Modo Escuro (Dark Mode) nativo[cite: 6]
-- Socket.io (para notificações em tempo real)[cite: 6]
+---
 
-**Backend & Base de Dados:**
-- Node.js e Express[cite: 6]
-- PostgreSQL (com suporte a alojamento em nuvem via Supabase)[cite: 1, 6]
-- JWT (JSON Web Tokens) para Autenticação segura[cite: 6]
-- Bcrypt (Hash de palavras-passe)[cite: 6]
-- Multer & Cloudinary (Upload e gestão segura de currículos em formato PDF)[cite: 6, 8]
-- Helmet e Express-Rate-Limit (Proteção contra ataques de força bruta e segurança web)[cite: 6]
-- Nodemailer (Gestão e envio de emails, incluindo recuperação de palavra-passe)[cite: 3, 6]
+## 📸 Captura de Ecrã
 
-## ⚙️ Principais Funcionalidades
+*[Substitui esta linha por uma imagem do teu site. Para isso, tira um print, faz upload para o repositório do GitHub e usa o caminho aqui. Exemplo: `![![Trampo Norte](screenshot.png)`]*
 
-- **Candidatos:** 
-  - Registo e Login seguros[cite: 6].
-  - Gestão de perfil com indicação de competências (*Skills*) e cidade[cite: 6].
-  - Upload de currículo estritamente em formato PDF (com validação de tipo MIME e limite de tamanho)[cite: 8].
-  - Candidatura a vagas, salvamento de oportunidades favoritas e sistema de avaliações de empresas[cite: 6, 8, 9].
-- **Empresas:** 
-  - Registo e Login[cite: 6].
-  - Publicação, gestão e arquivo de vagas de emprego[cite: 3, 6].
-  - Dashboard interativo para gestão de candidaturas recebidas (atualização de estados: Pendente, Em Análise, Aceite, Rejeitado)[cite: 6].
-- **Extras:** 
-  - Alertas em tempo real via WebSockets (Socket.io) para avisar as empresas de novas candidaturas[cite: 6, 8].
-  - Sistema de recuperação de palavra-passe por token encriptado[cite: 8, 10].
-  - Filtros avançados de pesquisa e paginação[cite: 6].
+---
 
-## 🛠️ Como correr o projeto localmente
+## 🛠️ Stack Tecnológica
 
-1. Clona o repositório ou abre a pasta do projeto.
-2. Instala as dependências:
+**Backend**
+- **Node.js** + **Express** — servidor e API REST
+- **PostgreSQL** (via **Supabase**) — base de dados persistente
+- **JWT** + **Bcrypt** — autenticação e hash de passwords
+- **Socket.io** — notificações e chat em tempo real
+- **Helmet** + **Express Rate Limit** — segurança
+
+**Frontend**
+- **HTML5**, **CSS3** e **JavaScript (Vanilla)** — sem frameworks, com foco na simplicidade
+- **Design responsivo** com **Modo Escuro** integrado
+
+**Serviços Externos**
+- **Cloudinary** — armazenamento de CVs e avatares
+- **Resend** — envio de emails de notificação
+- **Render** — deploy automatizado
+
+---
+
+## ✨ Funcionalidades
+
+- **Candidatos:** Registo, login, perfil com skills, upload de CV e foto, candidatura a vagas, guardar vagas favoritas, avaliar empresas.
+- **Empresas:** Registo, login, publicação e gestão de vagas, painel de candidaturas com estado (Pendente, Em Análise, Aceite, Rejeitado), envio de mensagens diretas aos candidatos.
+- **Extras:** Notificações em tempo real (Socket.io), chat entre empresa e candidato, filtros de pesquisa (cidade, tipo, área, salário), paginação, modo escuro e match de skills.
+
+---
+
+## ⚙️ Como correr localmente
+
+1. **Clona o repositório:**
    ```bash
-   npm install
+   git clone https://github.com/danilopereira199328-wq/tramponorte.git
+   cd tramponorte
