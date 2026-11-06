@@ -265,7 +265,7 @@ p{color:var(--detail)}
 
   function isSaved(j) { return savedIds.includes(j.id); }
 
-  // DESENHO DA LISTA
+  // DESENHO DA LISTA (Com correção dos títulos)
   function draw(){
     byId('count').textContent = totalJobs + ' oportunidades encontradas';
     byId('none').style.display = liveJobs.length ? 'none' : 'block';
@@ -283,9 +283,10 @@ p{color:var(--detail)}
         actionBtn = `<button class="save" data-action="details" data-id="${j.id}">Ver detalhes</button>`;
       }
 
+      // CORREÇÃO: Usar j.t (título) e j.c (empresa) em vez de j.title e j.company
       return `<article class="job"><div>
-        <h3 data-action="company" data-id="${j.user_id}">${esc(j.title)}</h3>
-        <div class="detail">${esc(j.company)} · ${esc(j.city)} · ${esc(j.area)}<br>${esc(j.type)}</div>
+        <h3 data-action="company" data-id="${j.user_id}">${esc(j.t)}</h3>
+        <div class="detail">${esc(j.c)} · ${esc(j.city)} · ${esc(j.area)}<br>${esc(j.type)}</div>
         <span class="tag">${eur(j.salary)} / mês</span>${matchBadge}</div>
         <div class="actions" style="display:flex;flex-direction:column;gap:7px">
           <button class="save" data-action="toggle" data-id="${j.id}">${btnLabel}</button>
@@ -307,7 +308,7 @@ p{color:var(--detail)}
 
   window.changePage = (p) => { currentPage = p; loadJobs(); window.scrollTo({top:300,behavior:'smooth'}); };
 
-  // FUNÇÃO CANDIDATAR (ADICIONADA)
+  // FUNÇÃO CANDIDATAR
   window.applyJob = async (jobId) => {
     try {
       const d = await api('/api/jobs/' + jobId + '/apply', {
@@ -316,7 +317,7 @@ p{color:var(--detail)}
       });
       showToast(d.message, 'success');
       byId('modal').classList.remove('open');
-      loadJobs(); // Atualiza a lista para mostrar "Já Candidatado"
+      loadJobs();
     } catch (e) {
       showToast(e.message, 'error');
     }
@@ -330,6 +331,7 @@ p{color:var(--detail)}
     const headers = candToken ? { Authorization: 'Bearer ' + candToken } : {};
     try{
       const res = await api('/api/jobs?' + params, { headers });
+      // Mapeamento: title -> t, company -> c
       liveJobs = res.data.map(x => ({ id: x.id, user_id: x.user_id, t: x.title, c: x.company, city: x.city, type: x.type, area: x.area, salary: x.salary, desc: x.description, isMatch: x.isMatch, hasApplied: x.hasApplied }));
       totalJobs = res.meta.total; totalPages = res.meta.totalPages;
     }catch(e){ console.error(e); }
@@ -479,7 +481,8 @@ p{color:var(--detail)}
             <div>
               <b>${esc(a.candidate_name)}</b> <span class="detail">- ${esc(a.candidate_email)}</span><br>
               <span class="detail">Vaga: <b>${esc(a.title)}</b></span><br>
-              <a href="${esc(a.cv_path)}" target="_blank" style="color:var(--primary);font-size:13px;">📄 Ver CV</a>
+              <!-- CORREÇÃO: Link "Ver CV" com target="_blank" -->
+              <a href="${esc(a.cv_path)}" target="_blank" rel="noopener" style="color:var(--primary);font-size:13px;text-decoration:underline;">📄 Ver CV</a>
               <button onclick="openChat(${a.candidate_id}, '${esc(a.candidate_name)}')" style="margin-left:10px;background:var(--primary);color:white;border:none;border-radius:4px;padding:2px 8px;font-size:12px;cursor:pointer">💬 Chat</button>
             </div>
           </div>
