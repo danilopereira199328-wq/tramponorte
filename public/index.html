@@ -3,8 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Trampo Norte — Empregos</title>
+<title>Trampo Norte — Empregos no Norte de Portugal</title>
+<meta name="description" content="Trampo Norte — Plataforma de emprego full-stack para a região Norte de Portugal. Encontra vagas em Braga, Porto, Guimarães e Fafe.">
+<meta name="keywords" content="emprego, vagas, Portugal, Norte, Braga, Porto, tecnologia, desenvolvimento">
+<meta property="og:title" content="Trampo Norte — Empregos no Norte de Portugal">
+<meta property="og:description" content="Encontra trabalho perto de ti, com empresas que valorizam o teu talento.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://tramponorte.onrender.com">
 <script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 :root { --bg: #f4f7f3; --text: #183328; --card: #ffffff; --border: #e1e9e1; --primary: #176b4a; --primary-hover: #125338; --hero-grad: linear-gradient(135deg, #eaf3e5 0%, #d4e8c9 100%); --input-bg: #ffffff; --detail: #627168; }
 [data-theme="dark"] { --bg: #121a16; --text: #e0e8e3; --card: #1c2621; --border: #2d3b33; --primary: #2ebd85; --primary-hover: #26a372; --hero-grad: linear-gradient(135deg, #1a2620 0%, #12281c 100%); --input-bg: #25332c; --detail: #9db0a5; }
@@ -110,6 +117,22 @@ p{color:var(--detail)}
   <div class="none" id="none" style="display:none;text-align:center;padding:20px;background:var(--card);border-radius:10px;color:var(--detail)">Não foram encontradas vagas.</div>
   <div class="pagination" id="pagination"></div>
 
+  <!-- ALERTAS DE EMPREGO -->
+  <section class="job" style="display:block;margin:22px 0">
+    <h2>🔔 Recebe alertas de novas vagas</h2>
+    <p class="detail">Subscreve para receberes um email quando aparecerem vagas novas que correspondam aos teus critérios.</p>
+    <form class="alert" id="alertForm" style="margin-top:15px">
+      <input id="alertEmail" type="email" placeholder="O teu email" required>
+      <input id="alertQuery" placeholder="Palavra-chave (ex: Programador)" style="flex:2">
+      <select id="alertCity">
+        <option value="">Todas as cidades</option>
+        <option>Porto</option><option>Braga</option><option>Vila Real</option><option>Guimarães</option><option>Fafe</option>
+      </select>
+      <button type="submit" style="background:var(--primary);color:white;padding:10px 14px;border:none;border-radius:8px;cursor:pointer">Criar alerta</button>
+    </form>
+    <p id="alertStatus" class="detail" style="margin-top:10px"></p>
+  </section>
+
   <!-- ÁREA CANDIDATO -->
   <section class="job" id="candidate" style="display:block;margin:22px 0">
     <h2>Área de candidatos</h2>
@@ -190,6 +213,12 @@ p{color:var(--detail)}
       </div>
       <h3 style="margin-top:25px">📩 Candidaturas Recebidas</h3>
       <div id="applicationsList"></div>
+
+      <h3 style="margin-top:25px">📊 Estatísticas de Candidaturas</h3>
+      <div style="background:var(--bg);padding:20px;border-radius:8px;border:1px solid var(--border);margin-bottom:20px;max-width:400px;margin-left:auto;margin-right:auto">
+        <canvas id="statsChart"></canvas>
+      </div>
+
       <div id="myJobsList" style="margin:20px 0"></div>
       <form id="postForm">
         <h3>Publicar oportunidade</h3>
@@ -265,7 +294,7 @@ p{color:var(--detail)}
 
   function isSaved(j) { return savedIds.includes(j.id); }
 
-  // DESENHO DA LISTA (Com correção dos títulos)
+  // DESENHO DA LISTA
   function draw(){
     byId('count').textContent = totalJobs + ' oportunidades encontradas';
     byId('none').style.display = liveJobs.length ? 'none' : 'block';
@@ -275,15 +304,12 @@ p{color:var(--detail)}
       const marked = isSaved(j);
       const btnLabel = marked ? '♥ Guardada' : '♡ Guardar';
       const matchBadge = j.isMatch ? '<span class="match-tag">🌟 Match Perfeito</span>' : '';
-      
       let actionBtn = '';
       if (j.hasApplied) {
         actionBtn = `<button class="save" style="background:#d1fae5;color:#065f46;border:1px solid #a7f3d0;cursor:default" disabled>✓ Já Candidatado</button>`;
       } else {
         actionBtn = `<button class="save" data-action="details" data-id="${j.id}">Ver detalhes</button>`;
       }
-
-      // CORREÇÃO: Usar j.t (título) e j.c (empresa) em vez de j.title e j.company
       return `<article class="job"><div>
         <h3 data-action="company" data-id="${j.user_id}">${esc(j.t)}</h3>
         <div class="detail">${esc(j.c)} · ${esc(j.city)} · ${esc(j.area)}<br>${esc(j.type)}</div>
@@ -294,7 +320,6 @@ p{color:var(--detail)}
           ${actionBtn}
         </div></article>`;
     }).join('');
-    
     let pHTML = '';
     if(totalPages > 1){
       pHTML += `<button ${currentPage===1?'disabled':''} onclick="changePage(${currentPage-1})">Ant</button>`;
@@ -308,30 +333,21 @@ p{color:var(--detail)}
 
   window.changePage = (p) => { currentPage = p; loadJobs(); window.scrollTo({top:300,behavior:'smooth'}); };
 
-  // FUNÇÃO CANDIDATAR
   window.applyJob = async (jobId) => {
     try {
-      const d = await api('/api/jobs/' + jobId + '/apply', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + candToken }
-      });
+      const d = await api('/api/jobs/' + jobId + '/apply', { method: 'POST', headers: { Authorization: 'Bearer ' + candToken } });
       showToast(d.message, 'success');
       byId('modal').classList.remove('open');
       loadJobs();
-    } catch (e) {
-      showToast(e.message, 'error');
-    }
+    } catch (e) { showToast(e.message, 'error'); }
   };
 
   async function loadJobs(){
     byId('list').innerHTML = '<div class="skeleton"><div style="height:20px;width:60%"></div><div style="height:40px;width:80px"></div></div><div class="skeleton"><div style="height:20px;width:40%"></div><div style="height:40px;width:80px"></div></div>';
-    const params = new URLSearchParams({ 
-      q: byId('q').value, city: byId('city').value, type: byId('type').value, area: byId('area').value, minSalary: byId('minSalary').value, page: currentPage, limit: 6 
-    });
+    const params = new URLSearchParams({ q: byId('q').value, city: byId('city').value, type: byId('type').value, area: byId('area').value, minSalary: byId('minSalary').value, page: currentPage, limit: 6 });
     const headers = candToken ? { Authorization: 'Bearer ' + candToken } : {};
     try{
       const res = await api('/api/jobs?' + params, { headers });
-      // Mapeamento: title -> t, company -> c
       liveJobs = res.data.map(x => ({ id: x.id, user_id: x.user_id, t: x.title, c: x.company, city: x.city, type: x.type, area: x.area, salary: x.salary, desc: x.description, isMatch: x.isMatch, hasApplied: x.hasApplied }));
       totalJobs = res.meta.total; totalPages = res.meta.totalPages;
     }catch(e){ console.error(e); }
@@ -342,7 +358,6 @@ p{color:var(--detail)}
   byId('list').addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]'); if(!btn) return;
     const action = btn.dataset.action, id = btn.dataset.id;
-
     if(action === 'toggle') {
       const job = liveJobs.find(j => String(j.id) === String(id));
       if(isSaved(job)) savedIds = savedIds.filter(x => x !== job.id); else savedIds.push(job.id);
@@ -365,6 +380,25 @@ p{color:var(--detail)}
       let reviewBtn = candToken ? `<button class="save" style="margin-top:10px;width:100%" onclick="openReview(${j.id})">⭐ Avaliar Empresa</button>` : '';
       byId('modalBody').innerHTML = '<h2>'+esc(j.t)+'</h2><p>'+esc(j.c)+' · '+esc(j.city)+'</p><p>'+esc(j.desc)+'</p><p><b>Salário:</b> '+eur(j.salary)+'</p>' + applyBtn + reviewBtn;
       byId('modal').classList.add('open');
+      
+      // Adicionar dados estruturados SEO (JSON-LD)
+      const oldLd = document.getElementById('job-ld-json');
+      if(oldLd) oldLd.remove();
+      const ld = document.createElement('script');
+      ld.type = 'application/ld+json';
+      ld.id = 'job-ld-json';
+      ld.textContent = JSON.stringify({
+        "@context": "https://schema.org/",
+        "@type": "JobPosting",
+        "title": j.t,
+        "description": j.desc,
+        "datePosted": new Date().toISOString().split('T')[0],
+        "hiringOrganization": { "@type": "Organization", "name": j.c },
+        "jobLocation": { "@type": "Place", "address": { "@type": "PostalAddress", "addressLocality": j.city, "addressCountry": "PT" } },
+        "baseSalary": { "@type": "MonetaryAmount", "currency": "EUR", "value": { "@type": "QuantitativeValue", "value": j.salary, "unitText": "MONTH" } },
+        "employmentType": j.type
+      });
+      document.head.appendChild(ld);
     }
     if(action === 'company') {
       try {
@@ -372,7 +406,6 @@ p{color:var(--detail)}
         let stars = '';
         for(let i=1; i<=5; i++) stars += `<span style="color:${i <= Math.round(data.reviews.average) ? '#fbbf24' : '#d1d5db'}">★</span>`;
         let reviewList = data.reviews.list.length ? data.reviews.list.map(r => `<div style="border-bottom:1px solid var(--border);padding:10px 0"><b>${esc(r.name)}</b> <span style="color:#fbbf24">${'★'.repeat(r.rating)}</span><p class="detail" style="margin:5px 0">${esc(r.comment)}</p></div>`).join('') : '<p class="detail">Sem avaliações.</p>';
-        
         byId('companyBody').innerHTML = `
           <h2>${esc(data.company)}</h2>
           <div style="font-size:24px;margin:10px 0">${stars} <span style="font-size:14px;color:var(--detail)">(${data.reviews.average} - ${data.reviews.total} avaliações)</span></div>
@@ -466,8 +499,8 @@ p{color:var(--detail)}
   function showEmployerArea(name) {
     byId('empRegContainer').style.display='none'; byId('empLoginContainer').style.display='none'; byId('employerArea').style.display='block';
     byId('employerStatus').textContent = 'Sessão: ' + name;
-    if(!socket) { socket = io(); const p = JSON.parse(atob(token.split('.')[1])); currentEmployerId = p.id; socket.emit('join_employer', p.id); socket.on('new_application', (d) => { showToast(d.message, 'info'); loadApplications(); }); }
-    loadApplications(); loadMyJobs();
+    if(!socket) { socket = io(); const p = JSON.parse(atob(token.split('.')[1])); currentEmployerId = p.id; socket.emit('join_employer', p.id); socket.on('new_application', (d) => { showToast(d.message, 'info'); loadApplications(); loadStats(); }); }
+    loadApplications(); loadMyJobs(); loadStats();
   }
 
   async function loadApplications() {
@@ -481,7 +514,6 @@ p{color:var(--detail)}
             <div>
               <b>${esc(a.candidate_name)}</b> <span class="detail">- ${esc(a.candidate_email)}</span><br>
               <span class="detail">Vaga: <b>${esc(a.title)}</b></span><br>
-              <!-- CORREÇÃO: Link "Ver CV" com target="_blank" -->
               <a href="${esc(a.cv_path)}" target="_blank" rel="noopener" style="color:var(--primary);font-size:13px;text-decoration:underline;">📄 Ver CV</a>
               <button onclick="openChat(${a.candidate_id}, '${esc(a.candidate_name)}')" style="margin-left:10px;background:var(--primary);color:white;border:none;border-radius:4px;padding:2px 8px;font-size:12px;cursor:pointer">💬 Chat</button>
             </div>
@@ -492,8 +524,38 @@ p{color:var(--detail)}
     } catch(e){ console.error(e); }
   }
 
+  async function loadStats() {
+    try {
+      const apps = await api('/api/employer/applications', {headers:{Authorization:'Bearer '+token}});
+      const counts = { Pendente: 0, 'Em Análise': 0, Aceite: 0, Rejeitado: 0 };
+      apps.forEach(a => { if(counts[a.status] !== undefined) counts[a.status]++; });
+      
+      const ctx = byId('statsChart');
+      if(!ctx) return;
+      if(window.statsChartInstance) window.statsChartInstance.destroy();
+      
+      window.statsChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Pendente', 'Em Análise', 'Aceite', 'Rejeitado'],
+          datasets: [{
+            data: [counts.Pendente, counts['Em Análise'], counts.Aceite, counts.Rejeitado],
+            backgroundColor: ['#fbbf24', '#60a5fa', '#4ade80', '#f87171'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: getComputedStyle(document.documentElement).getPropertyValue('--text') } }
+          }
+        }
+      });
+    } catch(e) { console.error('Erro ao carregar estatísticas:', e); }
+  }
+
   window.updateAppStatus = async (id, status) => {
-    try { await api('/api/employer/applications/'+id, {method:'PUT', headers:{'Content-Type':'application/json', Authorization:'Bearer '+token}, body: JSON.stringify({status})}); showToast('Atualizado.', 'success'); }
+    try { await api('/api/employer/applications/'+id, {method:'PUT', headers:{'Content-Type':'application/json', Authorization:'Bearer '+token}, body: JSON.stringify({status})}); showToast('Atualizado.', 'success'); loadStats(); }
     catch(e){ showToast('Erro.', 'error'); }
   };
 
@@ -520,7 +582,6 @@ p{color:var(--detail)}
     byId('chatTitle').textContent = 'Chat com ' + receiverName;
     byId('chatMessages').innerHTML = '<p class="detail">A carregar...</p>';
     byId('chatModal').classList.add('open');
-
     try {
       const msgs = await api(`/api/messages/${receiverId}/${currentEmployerId}`, {headers:{Authorization:'Bearer '+token}});
       byId('chatMessages').innerHTML = msgs.map(m => {
@@ -536,12 +597,7 @@ p{color:var(--detail)}
     const input = byId('chatInput');
     const content = input.value.trim();
     if(!content) return;
-    socket.emit('send_message', {
-      sender_id: currentEmployerId,
-      receiver_id: activeChatUserId,
-      sender_role: 'employer',
-      content: content
-    });
+    socket.emit('send_message', { sender_id: currentEmployerId, receiver_id: activeChatUserId, sender_role: 'employer', content: content });
     input.value = '';
   });
 
@@ -556,6 +612,28 @@ p{color:var(--detail)}
   }
 
   byId('chatClose').addEventListener('click', () => byId('chatModal').classList.remove('open'));
+
+  // --- ALERTAS DE EMPREGO ---
+  byId('alertForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = byId('alertEmail').value.trim();
+    const query = byId('alertQuery').value.trim();
+    const city = byId('alertCity').value;
+    
+    try {
+      const d = await api('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, query, city })
+      });
+      byId('alertStatus').textContent = '✅ ' + d.message;
+      byId('alertStatus').style.color = '#16a34a';
+      e.target.reset();
+    } catch(err) {
+      byId('alertStatus').textContent = '❌ ' + err.message;
+      byId('alertStatus').style.color = '#dc2626';
+    }
+  });
 
   // --- FILTROS & MODAIS ---
   byId('form').addEventListener('submit', (e) => { e.preventDefault(); currentPage=1; loadJobs(); });

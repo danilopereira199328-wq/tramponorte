@@ -185,6 +185,17 @@ app.get('/api/messages/:candidateId/:employerId', auth, async (req, res) => {
   res.json(messages);
 });
 
+// --- ALERTAS DE EMPREGO ---
+app.post('/api/alerts', async (req, res) => {
+  const { email, query = '', city = '' } = req.body || {};
+  if(!email || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'Email inválido.' });
+  try {
+    await run('INSERT INTO alerts(email, query, city) VALUES($1, $2, $3)', 
+      [email.toLowerCase().trim(), String(query).slice(0, 100), String(city).slice(0, 80)]);
+    res.status(201).json({ message: 'Alerta criado! Vais receber um email quando aparecerem vagas novas que correspondam aos teus critérios.' });
+  } catch(e) { res.status(500).json({ error: 'Erro ao criar alerta.' }); }
+});
+
 // --- VAGAS COM FILTROS E CANDIDATURAS ---
 app.get('/api/jobs', async (req, res) => {
   const q = '%' + String(req.query.q || '').slice(0, 100) + '%';
@@ -216,7 +227,30 @@ app.get('/api/jobs', async (req, res) => {
 app.post('/api/jobs', auth, async (req, res) => {
   const b = req.body || {};
   const r = await run('INSERT INTO jobs(user_id,title,company,city,type,area,salary,description,contact_email) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id', [req.user.id, b.title, req.user.company, b.city, b.type, b.area, b.salary||null, b.description, b.contact_email]);
-  res.status(201).json(await get('SELECT * FROM jobs WHERE id=$1', [r.id]));
+  const newJob = await get('SELECT * FROM jobs WHERE id=$1', [r.id]);
+  
+  if(process.env.RESEND_API_KEY) {
+    try {
+      const subscribers = await all("SELECT * FROM alerts WHERE (query = '' OR $1 ILIKE '%' || query || '%') AND (city = '' OR city = $2)", 
+        [b.title + ' ' + b.area + ' ' + b.company, b.city]);
+      
+      if(subscribers.length > 0) {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        for(const sub of subscribers) {
+          try {
+            await resend.emails.send({
+              from: 'Trampo Norte <onboarding@resend.dev>',
+              to: sub.email,
+              subject: `Nova vaga: ${newJob.title} em ${newJob.city}`,
+              html: `<h3>Nova vaga publicada no Trampo Norte!</h3><p><b>${newJob.title}</b> em ${newJob.city} (${newJob.area})</p><p><a href="https://tramponorte.onrender.com">Ver detalhes e candidatar-me</a></p>`
+            });
+          } catch(err) { console.error('Erro ao enviar alerta:', err); }
+        }
+      }
+    } catch(err) { console.error('Erro ao processar alertas:', err); }
+  }
+  
+  res.status(201).json(newJob);
 });
 
 app.get('/api/my/jobs', auth, async (req, res) => { res.json(await all('SELECT * FROM jobs WHERE user_id=$1 AND active=1', [req.user.id])); });
@@ -235,7 +269,6 @@ app.get('/api/companies/:id', async (req, res) => {
 // --- SAVED & ALERTS ---
 app.post('/api/candidates/saved/:jobId', auth, async (req, res) => { await run('INSERT INTO saved_jobs(candidate_id,job_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [req.user.id, req.params.jobId]); res.status(201).json({saved:true}); });
 app.delete('/api/candidates/saved/:jobId', auth, async (req, res) => { await run('DELETE FROM saved_jobs WHERE candidate_id=$1 AND job_id=$2', [req.user.id, req.params.jobId]); res.status(204).end(); });
-app.post('/api/alerts', async (req, res) => { res.status(201).json({ message: 'Registado.' }); });
 
 app.use((req, res) => res.status(404).json({ error: 'Recurso não encontrado.' }));
 app.use((err, req, res, next) => { console.error(err); res.status(500).json({ error: err.message }); });
@@ -254,7 +287,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// MODIFICAÇÃO IMPORTANTE: Exportar a app para os testes
 if (require.main === module) {
   server.listen(PORT, () => console.log('Tramponorte online: ' + PORT));
 }

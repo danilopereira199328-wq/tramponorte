@@ -1,31 +1,32 @@
 {
   "name": "tramponorte",
   "version": "1.0.0",
-  "private": true,
-  "description": "Plataforma de emprego para o Norte de Portugal",
+  "description": "Plataforma de emprego Full-Stack para o Norte de Portugal",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "jest --detectOpenHandles --forceExit"
   },
+  "keywords": [],
+  "author": "Danilo Pereira",
+  "license": "ISC",
   "dependencies": {
-    "bcryptjs": "^3.0.2",
-    "cloudinary": "^2.11.0",
-    "dotenv": "^18.0.9",
-    "express": "^5.1.0",
-    "express-rate-limit": "^8.7.2",
-    "helmet": "^8.3.0",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.5.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^2.5.0",
-    "nodemailer": "^10.3.1",
-    "postgres": "^4.0.0",
-    "resend": "^6.37.0",
-    "socket.io": "^4.8.4"
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.16",
+    "postgres": "^3.4.5",
+    "resend": "^4.0.1",
+    "socket.io": "^4.8.1"
   },
-  "engines": {
-    "node": ">=20"
-  },
-  "allowScripts": {
-    "sqlite3@5.1.7": true
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
   }
 }
